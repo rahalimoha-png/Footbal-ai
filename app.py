@@ -4,7 +4,7 @@ import random
 
 app = Flask(__name__)
 
-API_KEY = "PUT_YOUR_API_KEY_HERE"
+API_KEY = "08c67418b0411043bc7dab3af28068c8"
 URL = "https://v3.football.api-sports.io/fixtures?date=today"
 
 headers = {
