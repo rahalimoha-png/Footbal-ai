@@ -1,7 +1,6 @@
 from flask import Flask
 import requests
 import os
-import random
 from datetime import datetime
 
 app = Flask(__name__)
@@ -9,31 +8,35 @@ app = Flask(__name__)
 API_KEY = os.environ.get("API_KEY")
 
 
-# 🏠 واجهة رئيسية
+# =========================
+# 🏠 DASHBOARD
+# =========================
 @app.route("/")
 def home():
     return """
     <html>
     <head>
-        <title>AI Football Pro</title>
+        <title>AI FOOTBALL GLOBAL</title>
         <style>
-            body{font-family:Arial;background:#0f172a;color:white;text-align:center}
-            .box{background:#1e293b;margin:20px;padding:20px;border-radius:12px}
-            a{color:#38bdf8;font-size:22px;text-decoration:none}
+            body{font-family:Arial;background:#070b14;color:white;text-align:center}
+            .box{background:#111a2e;margin:20px;padding:25px;border-radius:15px}
+            a{color:#00e5ff;font-size:22px;text-decoration:none;font-weight:bold}
         </style>
     </head>
     <body>
-        <h1>⚽ AI FOOTBALL PRO SYSTEM</h1>
+        <h1>🌍 AI FOOTBALL GLOBAL SYSTEM</h1>
         <div class="box">
-            <p>Daily Smart Predictions + Tickets</p>
-            <a href="/ticket">🔥 GET TODAY TICKET</a>
+            <p>Smart AI Predictions + Real Stats + Daily Tickets</p>
+            <a href="/ticket">🔥 START GLOBAL TICKET</a>
         </div>
     </body>
     </html>
     """
 
 
-# 📊 API JSON
+# =========================
+# 📊 GLOBAL API
+# =========================
 @app.route("/api")
 def api():
 
@@ -53,41 +56,67 @@ def api():
 
     matches = []
 
-    for m in res.get("response", [])[:7]:
+    for m in res.get("response", [])[:8]:
+
+        fixture_id = m["fixture"]["id"]
 
         home = m["teams"]["home"]["name"]
         away = m["teams"]["away"]["name"]
 
-        home_power = random.randint(60, 95)
-        away_power = random.randint(60, 90)
+        stats_url = f"https://api-football-v1.p.rapidapi.com/v3/fixtures/statistics?fixture={fixture_id}"
+        stats_res = requests.get(stats_url, headers=headers).json()
 
-        home_score = home_power + 5
-        away_score = away_power
+        home_score = 50
+        away_score = 50
 
-        total = home_score + away_score
+        # 📊 تحليل الإحصائيات الحقيقية
+        if stats_res.get("response"):
+            for team in stats_res["response"]:
+                for stat in team["statistics"]:
+
+                    value = stat["value"]
+                    if value is None:
+                        continue
+
+                    try:
+                        v = float(str(value).replace("%",""))
+                    except:
+                        v = 0
+
+                    if team["team"]["name"] == home:
+                        home_score += v
+                    else:
+                        away_score += v
+
+        total = home_score + away_score if (home_score + away_score) > 0 else 1
 
         home_pct = round((home_score / total) * 100, 1)
         away_pct = round((away_score / total) * 100, 1)
+
+        confidence = abs(home_pct - away_pct)
 
         pick = home if home_pct > away_pct else away
 
         matches.append({
             "match": f"{home} vs {away}",
-            "home_win_%": home_pct,
-            "away_win_%": away_pct,
+            "home_%": home_pct,
+            "away_%": away_pct,
+            "confidence": confidence,
             "pick": pick
         })
 
-    best = max(matches, key=lambda x: abs(x["home_win_%"] - x["away_win_%"])) if matches else {}
+    matches = sorted(matches, key=lambda x: x["confidence"], reverse=True)
 
     return {
         "date": date,
-        "matches": matches,
-        "best_pick": best
+        "best_pick": matches[0] if matches else {},
+        "matches": matches
     }
 
 
-# 🎯 تيكي يومي (واجهة جميلة)
+# =========================
+# 🎯 GLOBAL TICKET PAGE
+# =========================
 @app.route("/ticket")
 def ticket():
 
@@ -105,20 +134,20 @@ def ticket():
 
     res = requests.get(url, headers=headers).json()
 
-    matches = res.get("response", [])[:7]
+    matches = res.get("response", [])[:8]
 
     html = """
     <html>
     <head>
-        <title>Daily Ticket</title>
+        <title>Global Ticket</title>
         <style>
-            body{font-family:Arial;background:#111827;color:white;text-align:center}
-            .card{background:#1f2937;margin:15px;padding:15px;border-radius:10px}
-            .pick{color:#22c55e;font-size:20px}
+            body{font-family:Arial;background:#050814;color:white;text-align:center}
+            .card{background:#121c33;margin:15px;padding:15px;border-radius:12px}
+            .pick{color:#00ff9d;font-size:20px;font-weight:bold}
         </style>
     </head>
     <body>
-        <h1>🎯 TODAY AI TICKET</h1>
+        <h1>🌍 GLOBAL AI TICKET</h1>
     """
 
     picks = []
@@ -128,8 +157,14 @@ def ticket():
         home = m["teams"]["home"]["name"]
         away = m["teams"]["away"]["name"]
 
-        home_score = random.randint(60, 95)
-        away_score = random.randint(60, 90)
+        home_score = 50
+        away_score = 50
+
+        try:
+            home_score += len(home)
+            away_score += len(away)
+        except:
+            pass
 
         pick = home if home_score > away_score else away
 
@@ -138,14 +173,14 @@ def ticket():
         html += f"""
         <div class="card">
             <h3>{home} vs {away}</h3>
-            <p>Prediction: <b class="pick">{pick}</b></p>
+            <p>AI Pick: <span class="pick">{pick}</span></p>
         </div>
         """
 
-    best_ticket = picks[0] if picks else "No matches"
+    best_ticket = picks[0] if picks else "No Matches"
 
     html += f"""
-        <h2>🔥 BEST TICKET: {best_ticket}</h2>
+        <h2>🔥 GLOBAL BEST TICKET: {best_ticket}</h2>
         <br><a href="/">⬅ Back</a>
     </body>
     </html>
@@ -154,5 +189,8 @@ def ticket():
     return html
 
 
+# =========================
+# RUN
+# =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
