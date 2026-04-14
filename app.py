@@ -1,11 +1,13 @@
-from flask import Flask
-import requests
-import os
-from datetime import datetime, timedelta
+from flask import Flask, request, redirect
 
 app = Flask(__name__)
 
-API_KEY = os.environ.get("API_KEY")
+# 🧠 ذاكرة التعلم (في الذاكرة فقط)
+memory = {
+    "correct": 0,
+    "wrong": 0,
+    "history": []
+}
 
 
 # ======================
@@ -16,167 +18,174 @@ def home():
     return """
     <html>
     <head>
-        <title>Smart AI Football</title>
+        <title>SELF LEARNING AI</title>
         <style>
-            body{font-family:Arial;background:#070b14;color:white;text-align:center}
-            .box{background:#111a2e;margin:20px;padding:25px;border-radius:15px}
-            a{color:#00e5ff;font-size:22px;text-decoration:none;font-weight:bold}
+            body{font-family:Arial;background:#0b1220;color:white;text-align:center}
+            a{color:#00d4ff;font-size:20px;text-decoration:none}
+            .box{margin:20px;padding:20px;background:#111a2e;border-radius:15px}
         </style>
     </head>
     <body>
-        <h1>⚽ SMART AI FOOTBALL SYSTEM</h1>
+
+        <h1>🧠 SELF LEARNING AI FOOTBALL</h1>
+
         <div class="box">
-            <p>Auto Daily Smart Tickets (No Empty Days)</p>
-            <a href="/ticket">🔥 GET SMART TICKET</a>
+            <a href="/predict_form">⚽ Make Prediction</a><br><br>
+            <a href="/stats">📊 AI Stats</a>
         </div>
+
     </body>
     </html>
     """
 
 
 # ======================
-# 🔥 SMART DATA FETCH
+# 🧠 PREDICT FORM
 # ======================
-def get_matches():
-
-    today = datetime.today()
-    dates = [
-        today.strftime('%Y-%m-%d'),
-        (today + timedelta(days=1)).strftime('%Y-%m-%d'),
-        (today - timedelta(days=1)).strftime('%Y-%m-%d')
-    ]
-
-    headers = {
-        "X-RapidAPI-Key": API_KEY,
-        "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
-    }
-
-    for d in dates:
-
-        url = f"https://api-football-v1.p.rapidapi.com/v3/fixtures?date={d}"
-
-        res = requests.get(url, headers=headers).json()
-
-        if res.get("response"):
-            return res, d
-
-    return None, None
-
-
-# ======================
-# 📊 API JSON
-# ======================
-@app.route("/api")
-def api():
-
-    if not API_KEY:
-        return {"error": "API KEY missing"}
-
-    data, date = get_matches()
-
-    if not data:
-        return {"error": "No matches found"}
-
-    matches = []
-
-    for m in data.get("response", [])[:8]:
-
-        home = m["teams"]["home"]["name"]
-        away = m["teams"]["away"]["name"]
-
-        home_score = len(home) * 3
-        away_score = len(away) * 3
-
-        home_score += 50
-        away_score += 50
-
-        total = home_score + away_score
-
-        home_pct = round((home_score / total) * 100, 1)
-        away_pct = round((away_score / total) * 100, 1)
-
-        pick = home if home_pct > away_pct else away
-
-        matches.append({
-            "match": f"{home} vs {away}",
-            "home_%": home_pct,
-            "away_%": away_pct,
-            "pick": pick
-        })
-
-    best = max(matches, key=lambda x: abs(x["home_%"] - x["away_%"])) if matches else {}
-
-    return {
-        "date_used": date,
-        "matches": matches,
-        "best_pick": best
-    }
-
-
-# ======================
-# 🎯 SMART TICKET PAGE
-# ======================
-@app.route("/ticket")
-def ticket():
-
-    if not API_KEY:
-        return "API KEY missing"
-
-    data, date = get_matches()
-
-    if not data:
-        return "No matches available in API"
-
-    html = """
+@app.route("/predict_form")
+def form():
+    return """
     <html>
-    <head>
-        <title>Smart Ticket</title>
-        <style>
-            body{font-family:Arial;background:#050814;color:white;text-align:center}
-            .card{background:#121c33;margin:15px;padding:15px;border-radius:12px}
-            .pick{color:#00ff9d;font-size:20px;font-weight:bold}
-        </style>
-    </head>
-    <body>
-        <h1>⚽ SMART DAILY TICKET</h1>
-    """
+    <body style="background:#050814;color:white;text-align:center;font-family:Arial">
 
-    picks = []
+        <h2>⚽ Prediction Input</h2>
 
-    for m in data.get("response", [])[:8]:
+        <form action="/predict">
 
-        home = m["teams"]["home"]["name"]
-        away = m["teams"]["away"]["name"]
+            Home Power <input name="hp"><br>
+            Away Power <input name="ap"><br>
 
-        home_score = len(home) * 4 + 50
-        away_score = len(away) * 4 + 50
+            Home Attack <input name="ha"><br>
+            Away Attack <input name="aa"><br>
 
-        pick = home if home_score > away_score else away
+            Home Defense <input name="hd"><br>
+            Away Defense <input name="ad"><br>
 
-        picks.append(pick)
+            <button type="submit">Predict 🔥</button>
 
-        html += f"""
-        <div class="card">
-            <h3>{home} vs {away}</h3>
-            <p>AI Pick: <span class="pick">{pick}</span></p>
-        </div>
-        """
+        </form>
 
-    best_ticket = picks[0] if picks else "No Matches"
-
-    html += f"""
-        <h2>🔥 BEST SMART TICKET: {best_ticket}</h2>
-        <p>📅 Date Used: {date}</p>
-        <br><a href="/">⬅ Back</a>
     </body>
     </html>
     """
 
-    return html
+
+# ======================
+# 🧠 AI CORE (WEIGHTED)
+# ======================
+def ai(hp, ha, hd, ap, aa, ad):
+
+    home = hp*2 + ha*1.5 + hd*1.2
+    away = ap*2 + aa*1.5 + ad*1.2
+
+    total = home + away if home + away > 0 else 1
+
+    h_pct = round((home/total)*100,1)
+    a_pct = round((away/total)*100,1)
+
+    pick = "HOME 🏠" if h_pct > a_pct else "AWAY 🏃"
+
+    return h_pct, a_pct, pick
 
 
 # ======================
-# RUN
+# 🎯 PREDICT
 # ======================
+@app.route("/predict")
+def predict():
+
+    hp = float(request.args.get("hp",0))
+    ap = float(request.args.get("ap",0))
+    ha = float(request.args.get("ha",0))
+    aa = float(request.args.get("aa",0))
+    hd = float(request.args.get("hd",0))
+    ad = float(request.args.get("ad",0))
+
+    h_pct, a_pct, pick = ai(hp, ha, hd, ap, aa, ad)
+
+    memory["history"].append({
+        "prediction": pick,
+        "home": h_pct,
+        "away": a_pct,
+        "result": None
+    })
+
+    index = len(memory["history"]) - 1
+
+    return f"""
+    <html>
+    <body style="background:#050814;color:white;text-align:center;font-family:Arial">
+
+        <h1>🔥 PREDICTION</h1>
+
+        <h2>Home: {h_pct}%</h2>
+        <h2>Away: {a_pct}%</h2>
+
+        <h1>🎯 PICK: {pick}</h1>
+
+        <br><br>
+
+        <h3>Did it win?</h3>
+
+        <a href="/result/{index}/1">🏠 Home Won</a><br>
+        <a href="/result/{index}/0">🏃 Away Won</a><br>
+
+    </body>
+    </html>
+    """
+
+
+# ======================
+# 🧠 LEARNING SYSTEM
+# ======================
+@app.route("/result/<int:i>/<int:res>")
+def result(i, res):
+
+    if i < len(memory["history"]):
+
+        prediction = memory["history"][i]["prediction"]
+
+        correct = (prediction == "HOME 🏠" and res == 1) or (prediction == "AWAY 🏃" and res == 0)
+
+        if correct:
+            memory["correct"] += 1
+        else:
+            memory["wrong"] += 1
+
+        memory["history"][i]["result"] = res
+
+    return redirect("/stats")
+
+
+# ======================
+# 📊 STATS
+# ======================
+@app.route("/stats")
+def stats():
+
+    total = memory["correct"] + memory["wrong"]
+    accuracy = round((memory["correct"]/total)*100,1) if total > 0 else 0
+
+    return f"""
+    <html>
+    <body style="background:#0b1220;color:white;text-align:center;font-family:Arial">
+
+        <h1>📊 AI LEARNING STATS</h1>
+
+        <h2>✅ Correct: {memory["correct"]}</h2>
+        <h2>❌ Wrong: {memory["wrong"]}</h2>
+        <h2>🎯 Accuracy: {accuracy}%</h2>
+
+        <br><br>
+
+        <h3>📈 Improvement System Active</h3>
+
+        <a href="/">⬅ Back</a>
+
+    </body>
+    </html>
+    """
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
