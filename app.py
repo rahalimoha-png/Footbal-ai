@@ -16,11 +16,11 @@ headers = {
 def home():
     return "Server is running ✅"
 
-@app.route("/today", methods=["GET"])
+@app.route("/today")
 def today():
 
     if not API_KEY:
-        return jsonify({"error": "API_KEY not set in Environment Variables"})
+        return jsonify({"error": "API_KEY missing"})
 
     try:
         res = requests.get(URL, headers=headers).json()
@@ -32,14 +32,41 @@ def today():
             home = m["teams"]["home"]["name"]
             away = m["teams"]["away"]["name"]
 
+            import random
+
+            home_power = random.uniform(65, 95)
+            away_power = random.uniform(60, 90)
+
+            home_adv = 6
+
+            home_score = home_power + home_adv
+            away_score = away_power
+
+            total = home_score + away_score
+
+            home_win = round((home_score / total) * 100, 1)
+            away_win = round((away_score / total) * 100, 1)
+
+            if home_win > 55:
+                pick = home
+            elif away_win > 55:
+                pick = away
+            else:
+                pick = "No strong pick"
+
             matches.append({
-                "match": f"{home} vs {away}"
+                "match": f"{home} vs {away}",
+                "home_win_%": home_win,
+                "away_win_%": away_win,
+                "pick": pick
             })
 
-        return jsonify(matches)
+        best = max(matches, key=lambda x: abs(x["home_win_%"] - x["away_win_%"]))
+
+        return jsonify({
+            "matches": matches,
+            "best_pick": best
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)})
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
