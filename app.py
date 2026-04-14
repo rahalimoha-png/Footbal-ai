@@ -17,7 +17,11 @@ def today():
     if not API_KEY:
         return {"error": "API KEY missing"}
 
-    url = "https://api-football-v1.p.rapidapi.com/v3/fixtures?date=2024-04-14"
+   from datetime import datetime
+
+today_date = datetime.today().strftime('%Y-%m-%d')
+
+url = f"https://api-football-v1.p.rapidapi.com/v3/fixtures?date={today_date}"
 
     headers = {
         "X-RapidAPI-Key": API_KEY,
