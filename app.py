@@ -1,46 +1,72 @@
 from flask import Flask
+import requests
+import os
 import random
 
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "AI SERVER RUNNING ⚽"
+    return "REAL AI FOOTBALL RUNNING ⚽"
 
 @app.route("/today")
 def today():
 
-    matches = [
-        ("Barcelona", "Real Madrid"),
-        ("Man City", "Arsenal"),
-        ("PSG", "Marseille")
-    ]
+    API_KEY = os.environ.get("API_KEY")
 
-    results = []
+    if not API_KEY:
+        return {"error": "API KEY missing"}
 
-    for home, away in matches:
+    url = "https://api-football-v1.p.rapidapi.com/v3/fixtures?date=2024-04-14"
 
-        home_power = random.randint(60, 95)
-        away_power = random.randint(60, 90)
+    headers = {
+        "X-RapidAPI-Key": API_KEY,
+        "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+    }
 
-        home_score = home_power + 5
-        away_score = away_power
+    try:
+        res = requests.get(url, headers=headers).json()
 
-        total = home_score + away_score
+        matches = []
 
-        home_win = round((home_score / total) * 100, 1)
-        away_win = round((away_score / total) * 100, 1)
+        for m in res.get("response", [])[:5]:
 
-        pick = home if home_win > away_win else away
+            home = m["teams"]["home"]["name"]
+            away = m["teams"]["away"]["name"]
 
-        results.append({
-            "match": f"{home} vs {away}",
-            "home_%": home_win,
-            "away_%": away_win,
-            "pick": pick
-        })
+            # 🧠 AI بسيط
+            home_power = random.randint(60, 95)
+            away_power = random.randint(60, 90)
 
-    return {"matches": results}
+            home_score = home_power + 5
+            away_score = away_power
+
+            total = home_score + away_score
+
+            home_win = round((home_score / total) * 100, 1)
+            away_win = round((away_score / total) * 100, 1)
+
+            diff = abs(home_win - away_win)
+
+            pick = home if home_win > away_win else away
+
+            matches.append({
+                "match": f"{home} vs {away}",
+                "home_%": home_win,
+                "away_%": away_win,
+                "pick": pick,
+                "confidence": diff
+            })
+
+        matches = sorted(matches, key=lambda x: x["confidence"], reverse=True)
+
+        return {
+            "best_pick": matches[0] if matches else {},
+            "matches": matches
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
